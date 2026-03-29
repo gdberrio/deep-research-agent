@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 from rich import print
 import os
 from pathlib import Path
+import logfire
+
+logfire.configure()
 
 load_dotenv()
 
@@ -12,6 +15,7 @@ deployment_name = "gpt-5.4"
 api_key = os.getenv("GPT-5-4-API_KEY")
 
 def read_file(file_path: str) -> str:
+    logfire.info(f"Reading file: {file_path}")
     return Path(file_path).read_text()
 
 tools = [
@@ -46,7 +50,7 @@ completion = client.responses.create(
 )
 
 input_list += completion.output
-print(completion.output)
+logfire.info(f"Completion output: {completion.output}")
 
 for item in completion.output:
     if item.type == "function_call":
@@ -59,7 +63,7 @@ for item in completion.output:
                 "output": file_content
             })
 
-print("final input list:")
+logfire.info("final input list:")
 print(input_list)
 
 response = client.responses.create(
@@ -68,6 +72,6 @@ response = client.responses.create(
     tools=tools
 )
 
-print("final response:")
-print(response.model_dump_json(indent=2))
+logfire.info("final response:")
+logfire.info(response.model_dump_json(indent=2))
 print(response.output_text)
