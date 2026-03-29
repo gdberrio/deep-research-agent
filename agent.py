@@ -1,12 +1,10 @@
-from openai import OpenAI
+from openai import AsyncOpenAI
 import json
 from dotenv import load_dotenv
 from rich import print
 import os
-from pathlib import Path
-import logfire
-
-logfire.configure()
+from tools import READ_FILE_TOOL, Tool
+import asyncio
 
 load_dotenv()
 
@@ -14,64 +12,68 @@ endpoint = os.getenv("GPT-5-4-TARGET_URI")
 deployment_name = "gpt-5.4"
 api_key = os.getenv("GPT-5-4-API_KEY")
 
-def read_file(file_path: str) -> str:
-    logfire.info(f"Reading file: {file_path}")
-    return Path(file_path).read_text()
+class AgentRuntime:
+    def __init__(self, tools: list[Tool]) -> None:
+        self.tools = {tool.name: tool for tool in tools}
 
-tools = [
-    {
-        "type": "function",
-            "name": "read_file",
-            "description": "Read a file and return the content",
-            "parameters": {
-                "type": "object",
-                "properties": {"file_path": {"type": "string", "description": "The path to the file to read"}},
-                "required": ["file_path"]
-            }
+    def get_tools(self) -> list[dict]:
+        return [tool.to_openai_tool() for tool in self.tools.values()]
+
+    async def execute_function_call(self, call: dict) -> dict:
+        tool = self.tools[call.function.name]
+        if tool is None:
+            raise RuntimeError(f"Tool {call.function.name} not found")
+        if call.function.arguments is None:
+            raise RuntimeError(f"No arguments provided for tool {call.function.name}")
+        args = tool.args_model.model_validate_json(call.function.arguments)
+        result = await tool.handler(args)
+        return {
+            "role": "tool",
+            "tool_call_id": call.id,
+            "content": json.dumps(result)
         }
-]
+            
+async def main() -> None:
+    client = AsyncOpenAI(
+        base_url=endpoint,
+        api_key=api_key
+    )
+    runtime = AgentRuntime(tools=[READ_FILE_TOOL])
 
-client = OpenAI(
-    base_url=endpoint,
-    api_key=api_key
-)
+    input_list = [
+        {
+            "role": "user",
+            "content": "Please read the README.md file and return the content.",
+        }
+    ]
 
-input_list = [
-    {
-        "role": "user",
-        "content": "Please read the README.md file and return the content.",
-    }
-]
+    completion = await client.chat.completions.create(
+        model=deployment_name,
+        messages=input_list,
+        tools=runtime.get_tools()
+    )
+    
+    tool_calls = completion.choices[0].message.tool_calls or []
+    function_calls = [x for x in tool_calls if x.type == "function"]
+    if not function_calls:
+        raise RuntimeError("No function calls found in completion")
 
-completion = client.responses.create(
-    model=deployment_name,
-    input=input_list,
-    tools=tools
-)
+    if len(function_calls) != 1:
+        raise RuntimeError("Multiple function calls found in completion")
 
-input_list += completion.output
-logfire.info(f"Completion output: {completion.output}")
+    function_call = function_calls[0]
+    tool_result = await runtime.execute_function_call(function_call)
 
-for item in completion.output:
-    if item.type == "function_call":
-        if item.name == "read_file":
-            file_path = json.loads(item.arguments)["file_path"]
-            file_content = read_file(file_path)
-            input_list.append({
-                "type": "function_call_output",
-                "call_id": item.call_id,
-                "output": file_content
-            })
+    input_list.append(completion.choices[0].message)
+    input_list.append(tool_result)
 
-logfire.info("final input list:")
-print(input_list)
+    completion = await client.chat.completions.create(
+        model=deployment_name,
+        messages=input_list,
+        tools=runtime.get_tools()
+    )
 
-response = client.responses.create(
-    model=deployment_name,
-    input=input_list,
-    tools=tools
-)
+    print(completion.choices[0].message.content)
 
-logfire.info("final response:")
-logfire.info(response.model_dump_json(indent=2))
-print(response.output_text)
+if __name__ == "__main__":
+    asyncio.run(main())
