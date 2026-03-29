@@ -102,7 +102,7 @@ wheels = [
 ]
 
 [[package]]
-name = "deepresearchagent"
+name = "deep-research-agent"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
