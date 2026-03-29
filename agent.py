@@ -1,4 +1,5 @@
 from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletionMessageToolCall
 import json
 from dotenv import load_dotenv
 from rich import print
@@ -19,7 +20,7 @@ class AgentRuntime:
     def get_tools(self) -> list[dict]:
         return [tool.to_openai_tool() for tool in self.tools.values()]
 
-    async def execute_function_call(self, call: dict) -> dict:
+    async def execute_function_call(self, call: ChatCompletionMessageToolCall) -> dict:
         tool = self.tools[call.function.name]
         if tool is None:
             raise RuntimeError(f"Tool {call.function.name} not found")
