@@ -8,5 +8,6 @@ dependencies = [
     "anthropic>=0.86.0",
     "logfire>=4.31.0",
     "openai>=2.30.0",
+    "pydantic-ai-slim[anthropic,logfire,openai]>=1.73.0",
     "python-dotenv>=1.2.2",
 ]
