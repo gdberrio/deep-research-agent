@@ -1,6 +1,6 @@
 # Objective
 
-Learn about Deep Research Agents and how to implement them. Learn to use new tooling, frameworks, and try improve personal research workflows.
+Learn about Deep Research Agents and how to implement them. Learn to use new tooling, frameworks, and try improve personal research workflows. Code originally typed by hand, for learning purposes.
 
 ## References
 
